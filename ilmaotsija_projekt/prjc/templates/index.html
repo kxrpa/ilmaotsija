@@ -1,0 +1,1531 @@
+<!DOCTYPE html>
+<html lang="et">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ilmaotsija</title>
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" 
+          rel="stylesheet" 
+          integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" 
+          crossorigin="anonymous">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" 
+          rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css" 
+          rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" 
+          rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js" 
+            onerror="showToast('Kaarditeeki laadimine ebaõnnestus. Proovin varuvarianti.', 'warning'); this.src='/static/ol.js';"></script>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --accent-color: #16a34a;
+            --text-color: #1e293b;
+            --background-color: #f9fafb;
+            --glass-bg: rgba(255, 255, 255, 0.9);
+            --glass-blur: blur(10px);
+            --border-radius: 10px;
+            --shadow: 0 4px 16px rgba(0,0,0,0.08);
+            --gradient: linear-gradient(135deg, #2563eb, #16a34a);
+            --transition: all 0.3s ease;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-color);
+            background: var(--background-color);
+            margin: 0;
+            overflow: hidden;
+        }
+
+        #app-container {
+            display: flex;
+            height: 100vh;
+            width: 100vw;
+            overflow: hidden;
+        }
+
+        #sidebar {
+            width: 380px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            padding: 20px;
+            overflow-y: auto;
+            box-shadow: 2px 0 12px rgba(0,0,0,0.05);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #sidebar-header {
+            position: sticky;
+            top: 0;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            padding: 10px 0;
+            z-index: 1100;
+        }
+
+        #map {
+            flex: 1;
+            height: 100vh;
+            z-index: 500;
+            position: relative;
+        }
+
+        #map-loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1001;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            padding: 20px;
+            border-radius: var(--border-radius);
+            text-align: center;
+            box-shadow: var(--shadow);
+            animation: pulse 1.5s infinite;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 15px;
+        }
+
+        .header h1 {
+            font-size: 1.7rem;
+            font-weight: 700;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin: 0;
+        }
+
+        .header p {
+            font-size: 0.85rem;
+            color: #64748b;
+            margin: 5px 0 0;
+        }
+
+        .search-container {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            padding: 15px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            position: relative;
+            z-index: 1200;
+        }
+
+        .input-group {
+            position: relative;
+            transition: var(--transition);
+            margin-bottom: 20px;
+        }
+
+        .input-group:hover {
+            transform: scale(1.01);
+        }
+
+        .form-control {
+            border-radius: var(--border-radius);
+            border: 1px solid #e5e7eb;
+            padding: 10px 40px 10px 12px;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.95);
+            transition: border-color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 8px rgba(37, 99, 235, 0.2);
+            outline: none;
+        }
+
+        .clear-input {
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #64748b;
+            font-size: 1rem;
+            cursor: pointer;
+            display: none;
+        }
+
+        .input-group:hover .clear-input,
+        .form-control:focus ~ .clear-input,
+        .form-control:not(:placeholder-shown) ~ .clear-input {
+            display: block;
+        }
+
+        .clear-input:hover {
+            color: var(--primary-color);
+        }
+
+        .search-loading {
+            position: absolute;
+            right: 50px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: none;
+        }
+
+        .choices__inner {
+            border-radius: var(--border-radius);
+            border: 1px solid #e5e7eb;
+            padding: 6px;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.95);
+            transition: border-color 0.3s ease;
+        }
+
+        .choices__inner:focus-within {
+            border-color: var(--primary-color);
+        }
+
+        .choices__list--dropdown {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            z-index: 2500;
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        .btn-primary {
+            background: var(--gradient);
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 8px 15px;
+            font-weight: 500;
+            transition: var(--transition);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, #1e3a8a, #15803d);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+
+        .btn-refresh {
+            background: var(--primary-color);
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            transition: var(--transition);
+        }
+
+        .btn-refresh:hover {
+            background: #1e3a8a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+
+        #search-results {
+            position: absolute;
+            top: 100%;
+            left: 15px;
+            right: 15px;
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            max-height: 400px;
+            overflow-y: auto;
+            z-index: 1500;
+            margin-top: 5px;
+            border: 1px solid #e5e7eb;
+            animation: fadeIn 0.2s ease-in;
+        }
+
+        .search-result-item {
+            padding: 10px 12px;
+            border-bottom: 1px solid #e5e7eb;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+        }
+
+        .search-result-item:hover {
+            background: rgba(37, 99, 235, 0.1);
+            transform: translateX(3px);
+        }
+
+        .search-result-item:focus {
+            background: rgba(37, 99, 235, 0.15);
+            outline: none;
+        }
+
+        .weather-card {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            z-index: 1000;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .weather-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+        }
+
+        .temperature-display {
+            font-size: 2.2rem;
+            font-weight: 600;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .weather-detail {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            font-size: 0.9rem;
+        }
+
+        .weather-detail i {
+            width: 20px;
+            color: var(--primary-color);
+            margin-right: 8px;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            background: var(--gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+        }
+
+        .unit-toggle {
+            cursor: pointer;
+            color: var(--primary-color);
+            font-size: 0.85rem;
+            margin-left: 8px;
+            padding: 4px 8px;
+            border: 1px solid var(--primary-color);
+            border-radius: 6px;
+            transition: var(--transition);
+        }
+
+        .unit-toggle:hover {
+            background: var(--primary-color);
+            color: white;
+            transform: scale(1.05);
+        }
+
+        .map-marker {
+            background: var(--gradient);
+            color: white;
+            border-radius: 50%;
+            width: 35px;
+            height: 35px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+            animation: pulse 2s infinite;
+        }
+
+        .ol-popup {
+            background: var(--glass-bg);
+            backdrop-filter: var(--glass-blur);
+            padding: 8px;
+            border-radius: var(--border-radius);
+            box-shadow: var(--shadow);
+            font-size: 0.9rem;
+            z-index: 1500;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: var(--border-radius);
+        }
+
+        #sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 2000;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: var(--border-radius);
+            padding: 10px;
+            font-size: 1.2rem;
+            transition: var(--transition);
+        }
+
+        #sidebar-toggle:hover {
+            background: #1e3a8a;
+            transform: scale(1.1);
+        }
+
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 8px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+            border-radius: 8px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #1e3a8a;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+            70% { transform: scale(1.05); box-shadow: 0 0 0 8px rgba(37, 99, 235, 0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+
+        @media (max-width: 768px) {
+            #app-container {
+                flex-direction: column;
+            }
+
+            #sidebar {
+                width: 100%;
+                height: 0;
+                overflow: hidden;
+                transition: height 0.3s ease;
+                position: fixed;
+                top: 0;
+                left: 0;
+                z-index: 1000;
+                padding: 16px;
+            }
+
+            #sidebar.active {
+                height: calc(100vh - 60px);
+                overflow-y: auto;
+            }
+
+            #map {
+                height: 100vh;
+                margin-top: 60px;
+            }
+
+            #sidebar-toggle {
+                display: block;
+            }
+
+            .search-container, .weather-card {
+                padding: 12px;
+                margin-bottom: 12px;
+            }
+
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .section-title {
+                font-size: 1rem;
+            }
+
+            .form-control {
+                font-size: 0.85rem;
+                padding: 8px 40px 8px 12px;
+            }
+
+            .btn-primary, .btn-refresh {
+                padding: 8px 14px;
+                font-size: 0.85rem;
+            }
+
+            .weather-detail {
+                font-size: 0.85rem;
+            }
+
+            .temperature-display {
+                font-size: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button id="sidebar-toggle" class="d-md-none" aria-label="Ava või sulge külgriba"><i class="bi bi-list"></i></button>
+    <div id="app-container">
+        <div id="sidebar">
+            <div id="sidebar-header">
+                <div class="header">
+                    <h1><i class="bi bi-cloud-sun-fill me-2"></i>Ilmaotsija</h1>
+                    <p>Vaata ilma üle maailma</p>
+                </div>
+            </div>
+
+            <div class="search-container">
+                <h5 class="section-title"><i class="bi bi-search me-2"></i>Otsi asukohta</h5>
+                <div class="mb-3 input-group">
+                    <input type="text" id="location-input" class="form-control" 
+                           placeholder="Otsi linna..." autocomplete="off" aria-label="Otsi linna">
+                    <button class="clear-input" id="clear-input" aria-label="Tühjenda otsing"><> <i class="bi bi-x"></i></button>
+                    <div class="search-loading" id="search-loading">
+                        <div class="spinner-border spinner-border-sm text-primary" role="status">
+                            <span class="visually-hidden">Laadimine...</span>
+                        </div>
+                    </div>
+                    <button id="search-btn" class="btn btn-primary" aria-label="Otsi">
+                        <i class="bi bi-search"></i>
+                    </button>
+                    <div id="search-results" style="display: none;">
+                        <div class="p-2 text-center text-muted">Sisesta linna nimi</div>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label for="country-filter" class="form-label">Vali riik</label>
+                    <select id="country-filter" class="form-select" aria-label="Vali riik">
+                        <option value="">Kõik riigid</option>
+                        {% for country in countries %}
+                            <option value="{{ country.code }}" data-country-code="{{ country.code }}">{{ country.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div id="weather-card" class="card weather-card" style="display: none;">
+                <div class="card-body">
+                    <h4 id="location-title" class="card-title fw-bold mb-3"></h4>
+                    <div class="d-flex align-items-center mb-3">
+                        <img id="weather-icon" class="weather-icon me-3" style="width: 50px;" alt="Ilmaikoon">
+                        <div>
+                            <div id="temperature" class="temperature-display"></div>
+                            <span id="weather-description" class="text-capitalize"></span>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-6">
+                            <div class="weather-detail">
+                                <i class="bi bi-thermometer-half"></i>
+                                <div>
+                                    <small class="text-muted">Tundub nagu</small>
+                                    <div id="feels-like" class="fw-bold"></div>
+                                </div>
+                            </div>
+                            <div class="weather-detail">
+                                <i class="bi bi-droplet"></i>
+                                <div>
+                                    <small class="text-muted">Niiskus</small>
+                                    <div id="humidity" class="fw-bold"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="weather-detail">
+                                <i class="bi bi-wind"></i>
+                                <div>
+                                    <small class="text-muted">Tuule kiirus</small>
+                                    <div id="wind-speed" class="fw-bold"></div>
+                                </div>
+                            </div>
+                            <div class="weather-detail">
+                                <i class="bi bi-compass"></i>
+                                <div>
+                                    <small class="text-muted">Koordinaadid</small>
+                                    <div id="coordinates" class="fw-bold"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex align-items-center">
+                        <span id="unit-toggle" class="unit-toggle" role="button" aria-label="Vaheta temperatuuri ühikuid">°C/°F</span>
+                        <button id="refresh-btn" style="color:white;" class="btn btn-refresh ms-2" aria-label="Värskenda ilma">
+                            <i class="bi bi-arrow-clockwise"></i> Värskenda
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="map">
+            <div id="map-loading" class="text-center">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Kaardi laadimine...</span>
+                </div>
+                <p>Kaardi laadimine...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" 
+            integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" 
+            crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+    <script>
+        let map = null;
+        let currentMarker = null;
+        let currentPopup = null;
+        let isCelsius = true;
+        let weatherData = null;
+        let updateInterval = null;
+        const CACHE_DURATION = 30 * 24 * 60 * 60 * 1000; // 30 päeva
+        const weatherCache = JSON.parse(localStorage.getItem('weatherCache') || '{}');
+        const searchCache = JSON.parse(localStorage.getItem('searchCache') || '{}');
+
+        // Suveräänsete riikide nimekiri (ISO 3166-1 alpha-2 koodid)
+        const SOVEREIGN_COUNTRIES = [
+            'AF', 'AL', 'DZ', 'AD', 'AO', 'AR', 'AM', 'AU', 'AT', 'AZ', 'BS', 'BH', 'BD', 'BB', 'BY', 'BE', 'BZ',
+            'BJ', 'BT', 'BO', 'BA', 'BW', 'BR', 'BN', 'BG', 'BF', 'BI', 'KH', 'CM', 'CA', 'CV', 'CF', 'TD', 'CL', 'CN',
+            'CO', 'KM', 'CG', 'CD', 'CR', 'CI', 'HR', 'CU', 'CY', 'CZ', 'DK', 'DJ', 'DM', 'DO', 'EC', 'EG', 'SV', 'GQ',
+            'ER', 'EE', 'ET', 'FJ', 'FI', 'FR', 'GA', 'GM', 'GE', 'DE', 'GH', 'GR', 'GD', 'GT', 'GN', 'GW', 'GY', 'HT',
+            'HN', 'HU', 'IS', 'IN', 'ID', 'IR', 'IQ', 'IE', 'IL', 'IT', 'JM', 'JP', 'JO', 'KZ', 'KE', 'KI', 'KP', 'KR',
+            'KW', 'KG', 'LA', 'LV', 'LB', 'LS', 'LR', 'LY', 'LI', 'LT', 'LU', 'MG', 'MW', 'MY', 'MV', 'ML', 'MT', 'MH',
+            'MR', 'MU', 'MX', 'FM', 'MD', 'MC', 'MN', 'ME', 'MA', 'MZ', 'MM', 'NA', 'NR', 'NP', 'NL', 'NZ', 'NI', 'NE',
+            'NG', 'NO', 'OM', 'PK', 'PW', 'PA', 'PG', 'PY', 'PE', 'PH', 'PL', 'PT', 'QA', 'RO', 'RU', 'RW', 'KN', 'LC',
+            'VC', 'WS', 'SM', 'ST', 'SA', 'SN', 'RS', 'SC', 'SL', 'SG', 'SK', 'SI', 'SB', 'SO', 'ZA', 'SS', 'ES', 'LK',
+            'SD', 'SR', 'SE', 'CH', 'SY', 'TJ', 'TH', 'TL', 'TG', 'TO', 'TT', 'TN', 'TR', 'TM', 'TV', 'UG', 'UA', 'AE',
+            'GB', 'US', 'UY', 'UZ', 'VU', 'VE', 'VN', 'YE', 'ZM', 'ZW'
+        ];
+
+        // Riigid, kus on vähem kui 5 linna
+        const SMALL_COUNTRIES = [
+            'AD', 'BB', 'BZ', 'BT', 'CV', 'DM', 'FJ', 'GD', 'KI', 'KN', 'LC', 'LI', 'MC', 'MH', 'MV', 'NR', 'PW',
+            'SB', 'SC', 'SM', 'ST', 'TO', 'TV', 'VA', 'VC', 'WS'
+        ];
+
+        // Filtreeritud riigid: Suveräänsed riigid, kus on 5+ linna, ja Vatikani
+        const ALLOWED_COUNTRIES = SOVEREIGN_COUNTRIES.filter(code => !SMALL_COUNTRIES.includes(code) || code === 'VA');
+
+        // Normaliseeri asukoht, eemaldades 'linn', asendades tühikud sidekriipsuga ja eemaldades erimärgid
+        function normalizeLocation(location) {
+            if (!location || typeof location !== 'string') return location;
+
+            const [cityPart, countryCode] = location.split(',');
+            if (!cityPart || !countryCode) return location;
+
+            // Eemalda 'linn' ja normaliseeri erimärgid
+            let normalizedCity = cityPart
+                .replace(/\blinn\b/gi, '') // Eemalda 'linn'
+                .trim();
+
+            // Asenda erimärgid ASCII vastega
+            normalizedCity = normalizedCity
+                .replace(/[õö]/g, 'o')
+                .replace(/[ä]/g, 'a')
+                .replace(/[ü]/g, 'u')
+                .normalize('NFD') // Eemalda diakriitilised märgid
+                .replace(/[\u0300-\u036f]/g, '');
+
+            // Asenda tühikud sidekriipsuga ja eemalda topelt sidekriipsud
+            normalizedCity = normalizedCity
+                .replace(/\s+/g, '-')
+                .replace(/-+/g, '-')
+                .replace(/^-|-$/g, '');
+
+            // Logi normaliseeritud asukoht
+            console.log('Normaliseeritud asukoht:', `${normalizedCity},${countryCode}`);
+
+            return `${normalizedCity},${countryCode}`;
+        }
+
+        // Alusta kaarti OpenStreetMap-iga, kasutades eesti keelt
+        function initializeMap() {
+            try {
+                const mapContainer = document.getElementById('map');
+                if (!mapContainer) throw new Error('Kaardi konteinerit ei leitud');
+                if (typeof ol === 'undefined') throw new Error('OpenLayers ei laadinud');
+
+                map = new ol.Map({
+                    target: 'map',
+                    layers: [
+                        new ol.layer.Tile({
+                            source: new ol.source.OSM({
+                                url: 'https://{a-c}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                attributions: 'Kaart © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                            })
+                        })
+                    ],
+                    view: new ol.View({
+                        center: ol.proj.fromLonLat([25, 58.5]), // Keskendu Eesti lähedale
+                        zoom: 6
+                    })
+                });
+
+                map.on('loadend', () => {
+                    document.getElementById('map-loading').style.display = 'none';
+                    console.log('Kaart edukalt laetud');
+                });
+
+                map.on('error', (e) => {
+                    logError('Kaardi viga', e);
+                    showToast('Kaardi laadimine ebaõnnestus: ' + e.message, 'danger');
+                });
+
+                map.on('singleclick', async (e) => {
+                    try {
+                        const coords = ol.proj.toLonLat(e.coordinate);
+                        console.log('Kaardil klõpsati koordinaatidel:', coords);
+                        const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords[1]}&lon=${coords[0]}&accept-language=et`, {
+                            headers: { 'User-Agent': 'Ilmaotsija/1.0 (your-email@example.com)' }
+                        });
+                        const data = await response.json();
+                        if (data && data.address) {
+                            const city = data.address.city || data.address.town || data.address.village;
+                            const countryCode = data.address.country_code ? data.address.country_code.toUpperCase() : 'XX';
+                            if (!city || city.toLowerCase() === 'unknown city') {
+                                console.warn('Kehtivat linna ei leitud koordinaatidel:', coords, 'Aadress:', data.address);
+                                showToast('Selles kohas linna ei leitud', 'warning');
+                                return;
+                            }
+                            const location = normalizeLocation(`${city},${countryCode}`);
+                            console.log('Kaardiklõps: Ilma hankimine asukohale', location);
+                            debounceFetchWeather(location);
+                            document.getElementById('location-input').value = city;
+                        } else {
+                            console.warn('Nominatim ei tagastanud aadressiandmeid:', data);
+                            showToast('Asukohta ei saanud tuvastada', 'danger');
+                        }
+                    } catch (error) {
+                        logError('Kaardiklõpsu viga', error);
+                        showToast('Asukoha tuvastamine ebaõnnestus: ' + error.message, 'danger');
+                    }
+                });
+
+                console.log('Kaart edukalt initsialiseeritud');
+            } catch (error) {
+                logError('Kaardi initsialiseerimise viga', error);
+                showToast('Kaardi initsialiseerimine ebaõnnestus: ' + error.message, 'danger');
+            }
+        }
+
+        // Vea logimine
+        function logError(message, error) {
+            console.error(`${message}: ${error.message}`, error.stack);
+            const errorDetails = {
+                message: error.message,
+                stack: error.stack,
+                time: new Date().toISOString()
+            };
+            localStorage.setItem('lastError', JSON.stringify(errorDetails));
+        }
+
+        // Valideeri ilmaandmed
+        function validateWeatherData(data) {
+            const requiredFields = ['city', 'country', 'temp', 'feels_like', 'humidity', 'wind_speed', 'icon', 'lat', 'lon', 'description'];
+            if (!data || typeof data !== 'object') {
+                console.warn('Vigased ilmaandmed: andmed on tühjad või pole objekt');
+                return false;
+            }
+            const missingFields = requiredFields.filter(field => !(field in data) || data[field] == null || data[field] === undefined);
+            if (missingFields.length > 0) {
+                console.warn('Puuduvad või vigased ilmaandmete väljad:', missingFields);
+                return false;
+            }
+            return true;
+        }
+
+        // Vahemälu haldamine
+        function saveToWeatherCache(location, data) {
+            if (!validateWeatherData(data)) {
+                console.warn('Vigaseid ilmaandmeid ei salvestata:', data);
+                return;
+            }
+            weatherCache[location] = { data, timestamp: Date.now() };
+            localStorage.setItem('weatherCache', JSON.stringify(weatherCache));
+            console.log('Ilmaandmed salvestatud vahemällu:', location);
+        }
+
+        function getFromWeatherCache(location) {
+            const cached = weatherCache[location];
+            if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION && validateWeatherData(cached.data)) {
+                console.log('Kehtivad vahemälust võetud ilmaandmed:', location);
+                return cached.data;
+            }
+            if (cached) {
+                console.warn('Eemaldan vigased või aegunud vahemälu andmed:', location);
+                delete weatherCache[location];
+                localStorage.setItem('weatherCache', JSON.stringify(weatherCache));
+            }
+            return null;
+        }
+
+        function saveToSearchCache(key, data) {
+            searchCache[key] = { data, timestamp: Date.now() };
+            localStorage.setItem('searchCache', JSON.stringify(searchCache));
+        }
+
+        function getFromSearchCache(key) {
+            const cached = searchCache[key];
+            if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+                return cached.data;
+            }
+            return null;
+        }
+
+        // Taasta ilmakardi DOM
+        function restoreWeatherCardDOM() {
+            const weatherCard = document.getElementById('weather-card');
+            if (!weatherCard) {
+                console.error('Ilmakaarti ei leitud');
+                return false;
+            }
+            const cardBody = weatherCard.querySelector('.card-body');
+            if (!cardBody) {
+                console.error('Kaardi sisu ei leitud');
+                return false;
+            }
+
+            cardBody.innerHTML = `
+                <h4 id="location-title" class="card-title fw-bold mb-3"></h4>
+                <div class="d-flex align-items-center mb-3">
+                    <img id="weather-icon" class="weather-icon me-3" style="width: 50px;" alt="Ilmaikoon">
+                    <div>
+                        <div id="temperature" class="temperature-display"></div>
+                        <span id="weather-description" class="text-capitalize"></span>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-6">
+                        <div class="weather-detail">
+                            <i class="bi bi-thermometer-half"></i>
+                            <div>
+                                <small class="text-muted">Tundub nagu</small>
+                                <div id="feels-like" class="fw-bold"></div>
+                            </div>
+                        </div>
+                        <div class="weather-detail">
+                            <i class="bi bi-droplet"></i>
+                            <div>
+                                <small class="text-muted">Niiskus</small>
+                                <div id="humidity" class="fw-bold"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="weather-detail">
+                            <i class="bi bi-wind"></i>
+                            <div>
+                                <small class="text-muted">Tuule kiirus</small>
+                                <div id="wind-speed" class="fw-bold"></div>
+                            </div>
+                        </div>
+                        <div class="weather-detail">
+                            <i class="bi bi-compass"></i>
+                            <div>
+                                <small class="text-muted">Koordinaadid</small>
+                                <div id="coordinates" class="fw-bold"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3 d-flex align-items-center">
+                    <span id="unit-toggle" class="unit-toggle" role="button" aria-label="Vaheta temperatuuri ühikuid">°C/°F</span>
+                    <button id="refresh-btn" class="btn btn-refresh ms-2" aria-label="Värskenda ilma">
+                        <i class="bi bi-arrow-clockwise"></i> Värskenda
+                    </button>
+                </div>
+            `;
+            return true;
+        }
+
+        // Initsialiseeri ilmakaart
+        function initializeWeatherCard() {
+            const weatherCard = document.getElementById('weather-card');
+            if (!weatherCard || weatherCard.style.display === 'none') {
+                console.warn('Ilmakaart pole nähtav või puudub, jäetakse initsialiseerimata');
+                return true;
+            }
+
+            const requiredElements = {
+                'location-title': '#location-title',
+                'weather-icon': '#weather-icon',
+                'temperature': '#temperature',
+                'weather-description': '#weather-description',
+                'feels-like': '#feels-like',
+                'humidity': '#humidity',
+                'wind-speed': '#wind-speed',
+                'coordinates': '#coordinates',
+                'unit-toggle': '#unit-toggle',
+                'refresh-btn': '#refresh-btn'
+            };
+
+            const missingElements = [];
+            for (const [id, selector] of Object.entries(requiredElements)) {
+                if (!weatherCard.querySelector(selector)) {
+                    missingElements.push(id);
+                }
+            }
+
+            if (missingElements.length > 0) {
+                console.warn('Puuduvad ilmakardi elemendid, taastan DOM-i:', missingElements);
+                if (!restoreWeatherCardDOM()) {
+                    logError('Ilmakardi DOM-i taastamine ebaõnnestus', new Error(`Puuduvad: ${missingElements.join(', ')}`));
+                    showToast(`Ilmakardi initsialiseerimine ebaõnnestus: ${missingElements.join(', ')}`, 'danger');
+                    return false;
+                }
+            }
+
+            for (const [id, selector] of Object.entries(requiredElements)) {
+                if (!weatherCard.querySelector(selector)) {
+                    logError('Ilmakardi element puudub peale taastamist', new Error(`Puudub: ${id}`));
+                    showToast(`Ilmakardi element puudub: ${id}`, 'danger');
+                    return false;
+                }
+            }
+
+            const unitToggle = weatherCard.querySelector('#unit-toggle');
+            const refreshBtn = weatherCard.querySelector('#refresh-btn');
+
+            if (unitToggle && !unitToggle.dataset.bound) {
+                unitToggle.addEventListener('click', () => {
+                    isCelsius = !isCelsius;
+                    if (weatherData) {
+                        updateWeatherDisplay();
+                        updateMap(weatherData.lon, weatherData.lat, weatherData.city, weatherData.temp, weatherData.description);
+                    }
+                });
+                unitToggle.dataset.bound = 'true';
+            }
+
+            if (refreshBtn && !refreshBtn.dataset.bound) {
+                refreshBtn.addEventListener('click', () => {
+                    const locationTitle = weatherCard.querySelector('#location-title');
+                    if (locationTitle && locationTitle.textContent) {
+                        const location = normalizeLocation(locationTitle.textContent.replace(', ', ','));
+                        debounceFetchWeather(location);
+                    } else {
+                        showToast('Vali esmalt asukoht', 'warning');
+                    }
+                });
+                refreshBtn.dataset.bound = 'true';
+            }
+
+            return true;
+        }
+
+        function initializeWeatherCardWithRetry(maxAttempts = 5, delay = 200) {
+            let attempts = 0;
+
+            function tryInitialize() {
+                attempts++;
+                const success = initializeWeatherCard();
+                if (!success && attempts < maxAttempts) {
+                    console.log(`Proovin ilmakardi initsialiseerimist uuesti (katse ${attempts + 1}/${maxAttempts})`);
+                    setTimeout(tryInitialize, delay);
+                } else if (!success) {
+                    logError('Ilmakardi initsialiseerimine ebaõnnestus peale korduskatseid', new Error('Maksimaalne katsete arv saavutatud'));
+                    showToast('Ilmakardi initsialiseerimine ebaõnnestus', 'danger');
+                }
+            }
+
+            tryInitialize();
+        }
+
+        // Värskenda ilmakuva
+        function updateWeatherDisplay() {
+            try {
+                if (!weatherData) {
+                    console.warn('Ilmaandmeid pole saadaval');
+                    return;
+                }
+
+                const weatherCard = document.getElementById('weather-card');
+                if (!weatherCard) {
+                    logError('Ilmakaarti ei leitud', new Error('weather-card element puudub'));
+                    showToast('Ilmakaarti ei leitud', 'danger');
+                    return;
+                }
+
+                if (!initializeWeatherCard()) {
+                    console.error('Ilmakardi initsialiseerimine ebaõnnestus');
+                    showToast('Ilmakardi initsialiseerimine ebaõnnestus', 'danger');
+                    return;
+                }
+
+                weatherCard.style.display = 'block';
+
+                const elements = {
+                    'location-title': `${weatherData.city}, ${weatherData.country}`,
+                    'weather-icon': `https://openweathermap.org/img/wn/${weatherData.icon}@2x.png`,
+                    'temperature': `${Math.round(isCelsius ? weatherData.temp : (weatherData.temp * 9/5) + 32)}°${isCelsius ? 'C' : 'F'}`,
+                    'weather-description': translateWeatherDescription(weatherData.description),
+                    'feels-like': `${Math.round(isCelsius ? weatherData.feels_like : (weatherData.feels_like * 9/5) + 32)}°${isCelsius ? 'C' : 'F'}`,
+                    'humidity': `${weatherData.humidity}%`,
+                    'wind-speed': `${weatherData.wind_speed} m/s`,
+                    'coordinates': `${weatherData.lat.toFixed(2)}°N, ${weatherData.lon.toFixed(2)}°E`
+                };
+
+                for (const [id, value] of Object.entries(elements)) {
+                    const element = document.getElementById(id);
+                    if (element) {
+                        if (id === 'weather-icon') {
+                            element.src = value;
+                            element.alt = weatherData.description;
+                        } else {
+                            element.textContent = value;
+                        }
+                    } else {
+                        console.warn(`Elementi ${id} ei leitud ilmakardilt`);
+                    }
+                }
+
+                console.log('Ilmakuva värskendatud:', weatherData);
+            } catch (error) {
+                logError('Ilmakuva värskendamise viga', error);
+                showToast('Ilmakuva värskendamine ebaõnnestus: ' + error.message, 'danger');
+            }
+        }
+
+        // Debounce wrapper
+        const debounceFetchWeather = debounce(async (location) => {
+            await fetchWeather(location);
+        }, 1000);
+
+        // Hangi ilmaandmed
+        async function fetchWeather(location) {
+            const normalizedLocation = normalizeLocation(location);
+            console.log('Hankin ilma (originaal):', location);
+            console.log('Hankin ilma (normaliseeritud):', normalizedLocation);
+            console.log('Saadetud URL:', `/weather?location=${encodeURIComponent(normalizedLocation)}`);
+
+            const weatherCard = document.getElementById('weather-card');
+            if (!weatherCard) {
+                logError('Ilmakaardi elementi ei leitud', new Error('weather-card puudub'));
+                showToast('Ilmakaarti ei leitud', 'danger');
+                return;
+            }
+
+            if (!initializeWeatherCard()) {
+                console.error('Ilmakardi initsialiseerimine ebaõnnestus');
+                showToast('Ilmakardi initsialiseerimine ebaõnnestus', 'danger');
+                return;
+            }
+
+            weatherCard.style.display = 'block';
+            let loadingOverlay = weatherCard.querySelector('.loading-overlay');
+            if (!loadingOverlay) {
+                loadingOverlay = document.createElement('div');
+                loadingOverlay.className = 'loading-overlay';
+                loadingOverlay.innerHTML = `
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Laadimine...</span>
+                        </div>
+                        <p>Laadin ilmaandmeid...</p>
+                    </div>
+                `;
+                weatherCard.appendChild(loadingOverlay);
+            }
+
+            const cachedWeather = getFromWeatherCache(normalizedLocation);
+            if (cachedWeather) {
+                console.log('Kasutan vahemälust võetud ilmaandmeid:', cachedWeather);
+                weatherData = cachedWeather;
+                updateWeatherDisplay();
+                updateMap(cachedWeather.lon, cachedWeather.lat, cachedWeather.city, cachedWeather.temp, cachedWeather.description);
+                initializeWeatherCardWithRetry();
+                if (loadingOverlay) loadingOverlay.remove();
+                return;
+            }
+
+            const maxRetries = 3;
+            let attempt = 0;
+
+            while (attempt < maxRetries) {
+                try {
+                    console.log('Hankin API-st:', `/weather?location=${encodeURIComponent(normalizedLocation)}`);
+                    const response = await fetch(`/weather?location=${encodeURIComponent(normalizedLocation)}`);
+                    console.log('API vastuse staatus:', response.status);
+                    if (!response.ok) {
+                        const err = await response.json();
+                        console.log('API vea vastus:', err);
+                        let errorMessage = err.error || 'Ilma hankimine ebaõnnestus';
+                        if (response.status === 429) {
+                            errorMessage = 'Liiga palju päringuid, palun oota hetk';
+                        } else if (response.status === 404) {
+                            errorMessage = 'Asukohta ei leitud';
+                        } else if (response.status === 400) {
+                            errorMessage = err.error || 'Vigane asukoha formaat';
+                        }
+                        throw new Error(errorMessage);
+                    }
+
+                    const data = await response.json();
+                    console.log('API andmed:', data);
+                    if (!validateWeatherData(data)) {
+                        throw new Error('Saadud ilmaandmed on vigased');
+                    }
+
+                    weatherData = data;
+                    saveToWeatherCache(normalizedLocation, data);
+
+                    updateWeatherDisplay();
+                    updateMap(data.lon, data.lat, data.city, data.temp, data.description);
+
+                    initializeWeatherCardWithRetry();
+
+                    if (updateInterval) clearInterval(updateInterval);
+                    updateInterval = setInterval(() => debounceFetchWeather(normalizedLocation), 300000);
+                    if (loadingOverlay) loadingOverlay.remove();
+                    return;
+                } catch (error) {
+                    attempt++;
+                    console.log(`Ilma hankimise katse ${attempt} ebaõnnestus:`, error);
+                    if (attempt >= maxRetries) {
+                        logError('Ilma hankimise viga', error);
+                        showToast(`Ilma laadimine ebaõnnestus: ${error.message}`, 'danger');
+                        weatherCard.style.display = 'none';
+                        if (loadingOverlay) loadingOverlay.remove();
+                        return;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
+                }
+            }
+        }
+
+        // Värskenda kaarti
+        function updateMap(lon, lat, city, temp, desc) {
+            if (!map) {
+                logError('Kaart pole initsialiseeritud', new Error('Kaardi objekt on tühi'));
+                showToast('Kaart pole initsialiseeritud', 'danger');
+                return;
+            }
+
+            try {
+                if (typeof lon !== 'number' || typeof lat !== 'number' || isNaN(lon) || isNaN(lat)) {
+                    throw new Error('Vigased koordinaadid');
+                }
+                if (!city || typeof temp !== 'number' || !desc) {
+                    throw new Error('Vigased ilmaandmed');
+                }
+
+                if (currentMarker) {
+                    map.removeOverlay(currentMarker);
+                    currentMarker = null;
+                }
+                if (currentPopup) {
+                    map.removeOverlay(currentPopup);
+                    currentPopup = null;
+                }
+
+                const coords = ol.proj.fromLonLat([lon, lat]);
+                if (!coords || isNaN(coords[0]) || isNaN(coords[1])) {
+                    throw new Error('Koordinaatide teisendamine ebaõnnestus');
+                }
+
+                map.getView().animate({
+                    center: coords,
+                    zoom: 12,
+                    duration: 1000
+                });
+
+                const markerElement = document.createElement('div');
+                const displayTemp = isCelsius ? temp : (temp * 9/5) + 32;
+                markerElement.innerHTML = `<div class="map-marker">${Math.round(displayTemp)}°${isCelsius ? 'C' : 'F'}</div>`;
+
+                currentMarker = new ol.Overlay({
+                    position: coords,
+                    positioning: 'center-center',
+                    element: markerElement,
+                    stopEvent: false
+                });
+                map.addOverlay(currentMarker);
+
+                const popupElement = document.createElement('div');
+                popupElement.className = 'ol-popup';
+                popupElement.innerHTML = `<b>${city}</b><br>${Math.round(displayTemp)}°${isCelsius ? 'C' : 'F'}, ${translateWeatherDescription(desc)}`;
+                currentPopup = new ol.Overlay({
+                    element: popupElement,
+                    positioning: 'bottom-center',
+                    stopEvent: true,
+                    offset: [0, -40]
+                });
+                map.addOverlay(currentPopup);
+
+                markerElement.addEventListener('click', () => {
+                    currentPopup.setPosition(coords);
+                });
+
+                map.on('click', (e) => {
+                    if (!e.originalEvent.target.closest('.map-marker')) {
+                        currentPopup.setPosition(undefined);
+                    }
+                });
+
+                console.log('Kaart värskendatud:', city, lon, lat);
+            } catch (error) {
+                logError('Kaardi värskendamise viga', error);
+                showToast('Kaardi värskendamine ebaõnnestus: ' + error.message, 'danger');
+            }
+        }
+
+        // Normaliseeri otsingu päring
+        function normalizeQuery(query) {
+            return query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        }
+
+        // Otsi asukohta
+        async function performSearch() {
+            const locationInput = document.getElementById('location-input');
+            const searchResults = document.getElementById('search-results');
+            const countryFilter = document.getElementById('country-filter');
+            const searchLoading = document.getElementById('search-loading');
+            const clearInput = document.getElementById('clear-input');
+
+            if (!locationInput || !searchResults || !countryFilter || !searchLoading) {
+                logError('Otsingu elemendid puuduvad', new Error('location-input, search-results, country-filter või search-loading puudub'));
+                showToast('Otsingu elemendid puuduvad', 'danger');
+                return;
+            }
+
+            const query = locationInput.value.trim();
+            const normalizedQuery = normalizeQuery(query);
+            const country = countryFilter.value;
+            const cacheKey = `${normalizedQuery}|${country}`;
+
+            console.log('Teostan otsingut:', { query, normalizedQuery, country });
+
+            if (normalizedQuery.length < 2) {
+                searchResults.innerHTML = '<div class="p-2 text-center text-muted">Sisesta linna nimi</div>';
+                searchResults.style.display = 'block';
+                searchLoading.style.display = 'none';
+                clearInput.style.display = 'block';
+                return;
+            }
+
+            const cachedResults = getFromSearchCache(cacheKey);
+            if (cachedResults) {
+                console.log('Kasutan vahemälust võetud otsingutulemusi:', cachedResults);
+                displaySearchResults(cachedResults, query);
+                searchLoading.style.display = 'none';
+                return;
+            }
+
+            searchResults.innerHTML = '<div class="p-2 text-center"><div class="spinner-border text-primary spinner-border-sm" role="status"><span class="visually-hidden">Laadimine...</span></div> Otsin...</div>';
+            searchResults.style.display = 'block';
+            searchLoading.style.display = 'block';
+            clearInput.style.display = 'none';
+
+            try {
+                const response = await fetch(`/search?q=${encodeURIComponent(query)}&country=${encodeURIComponent(country)}`);
+                console.log('Otsingu API vastuse staatus:', response.status);
+                if (!response.ok) {
+                    if (response.status === 429) {
+                        throw new Error('Liiga palju päringuid, palun oota hetk');
+                    }
+                    if (response.status === 404) {
+                        throw new Error(`Linnu "${query}" ei leitud`);
+                    }
+                    throw new Error('Otsing ebaõnnestus: ' + response.statusText);
+                }
+                const cities = await response.json();
+                console.log('Otsingu tulemused:', cities);
+                saveToSearchCache(cacheKey, cities);
+                displaySearchResults(cities, query);
+                searchLoading.style.display = 'none';
+                clearInput.style.display = 'block';
+            } catch (error) {
+                logError('Otsingu viga', error);
+                searchResults.innerHTML = `<div class="p-2 text-center text-danger">Otsing ebaõnnestus: ${error.message}</div>`;
+                showToast(`Otsingu viga: ${error.message}`, 'danger');
+                searchLoading.style.display = 'none';
+                clearInput.style.display = 'block';
+            }
+        }
+
+        function displaySearchResults(cities, query) {
+            const searchResults = document.getElementById('search-results');
+            searchResults.innerHTML = '';
+
+            if (!Array.isArray(cities) || cities.length === 0) {
+                searchResults.innerHTML = `<div class="p-2 text-center text-muted">Linnu "${query}" ei leitud</div>`;
+            } else {
+                cities.slice(0, 10).sort((a, b) => a.name.localeCompare(b.name)).forEach(loc => {
+                    const item = document.createElement('div');
+                    item.className = 'search-result-item';
+                    item.setAttribute('tabindex', '0');
+                    const normalizedCity = normalizeQuery(loc.name);
+                    const normalizedQuery = normalizeQuery(query);
+                    const regex = new RegExp(normalizedQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+                    const highlightedName = loc.name.replace(regex, match => `<strong>${match}</strong>`);
+                    item.innerHTML = `
+                        <div>
+                            <span class="city-name">${highlightedName}</span>
+                            <span class="country-name">, ${getCountryName(loc.country)}</span>
+                        </div>
+                        <i class="bi bi-geo-alt-fill text-primary"></i>
+                    `;
+                    item.addEventListener('click', () => {
+                        const location = normalizeLocation(`${loc.name},${loc.country}`);
+                        debounceFetchWeather(location);
+                        searchResults.style.display = 'none';
+                        document.getElementById('location-input').value = loc.name;
+                    });
+                    item.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            item.click();
+                        }
+                    });
+                    searchResults.appendChild(item);
+                });
+            }
+        }
+
+        function getCountryName(countryCode) {
+            const countryMap = {
+                {% for country in countries %}
+                '{{ country.code }}': '{{ country.name }}',
+                {% endfor %}
+            };
+            return countryMap[countryCode] || countryCode;
+        }
+
+        function translateWeatherDescription(description) {
+            const translations = {
+                'clear sky': 'Selge taevas',
+                'few clouds': 'Vähe pilvi',
+                'scattered clouds': 'Hajusad pilved',
+                'broken clouds': 'Pilvine',
+                'overcast clouds': 'Täielik pilvitus',
+                'light rain': 'Kerge vihm',
+                'moderate rain': 'Mõõdukas vihm',
+                'heavy rain': 'Tugev vihm',
+                'shower rain': 'Hoovihm',
+                'thunderstorm': 'Äike',
+                'snow': 'Lumi',
+                'light snow': 'Kerge lumi',
+                'heavy snow': 'Tugev lumi',
+                'mist': 'Udu',
+                'fog': 'Paks udu',
+                'haze': 'Vine'
+            };
+            return translations[description.toLowerCase()] || description;
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = `toast show align-items-center text-white bg-${type} border-0 position-fixed`;
+            toast.style.bottom = '20px';
+            toast.style.right = '20px';
+            toast.style.zIndex = '3000';
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">${message}</div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Sulge"></button>
+                </div>
+            `;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        function debounce(func, delay) {
+            let timeout;
+            return function() {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, arguments), delay);
+            };
+        }
+
+        // DOM initsialiseerimine
+        document.addEventListener('DOMContentLoaded', () => {
+            const requiredElements = {
+                map: '#map',
+                'weather-card': '#weather-card',
+                'location-input': '#location-input',
+                'search-btn': '#search-btn',
+                'clear-input': '#clear-input',
+                'country-filter': '#country-filter',
+                'search-results': '#search-results',
+                'sidebar-toggle': '#sidebar-toggle',
+                'search-loading': '#search-loading'
+            };
+
+            for (const [id, selector] of Object.entries(requiredElements)) {
+                if (!document.querySelector(selector)) {
+                    logError('DOM element puudub', new Error(`Element ${id} ei leitud`));
+                    showToast(`Element ${id} puudub`, 'danger');
+                }
+            }
+
+            // Initsialiseeri Choices.js filtreeritud riikidega
+            const countryFilter = document.getElementById('country-filter');
+            if (countryFilter) {
+                const rawOptions = Array.from(countryFilter.options).map(option => ({
+                    value: option.value,
+                    label: option.text.trim(),
+                    code: option.getAttribute('data-country-code')?.toUpperCase()
+                }));
+                console.log('Toored riigi valikud:', rawOptions);
+
+                countryFilter.innerHTML = '';
+
+                const choicesData = [];
+                const seenCodes = new Set();
+                choicesData.push({ value: '', label: 'Kõik riigid' });
+
+                rawOptions.forEach(option => {
+                    const { code, label, value } = option;
+                    if (code && !seenCodes.has(code) && ALLOWED_COUNTRIES.includes(code) && label && value) {
+                        choicesData.push({
+                            value: value,
+                            label: label
+                        });
+                        seenCodes.add(code);
+                    }
+                });
+
+                const uniqueChoices = [];
+                const seenLabels = new Set();
+                choicesData.forEach(choice => {
+                    if (!seenLabels.has(choice.label)) {
+                        uniqueChoices.push(choice);
+                        seenLabels.add(choice.label);
+                    }
+                });
+
+                uniqueChoices.sort((a, b) => a.label.localeCompare(b.label));
+
+                console.log('Unikaalsed valikud:', uniqueChoices);
+
+                new Choices(countryFilter, {
+                    searchEnabled: true,
+                    placeholderValue: 'Kõik riigid',
+                    searchPlaceholderValue: 'Otsi riiki...',
+                    itemSelectText: '',
+                    addItems: false,
+                    choices: uniqueChoices,
+                    shouldSort: true,
+                    shouldSortItems: true,
+                    searchResultLimit: 10
+                });
+            }
+
+            // Sündmuste kuulajad
+            const locationInput = document.getElementById('location-input');
+            const searchBtn = document.getElementById('search-btn');
+            const clearInput = document.getElementById('clear-input');
+            const searchResults = document.getElementById('search-results');
+            const sidebarToggle = document.getElementById('sidebar-toggle');
+
+            if (searchBtn) searchBtn.addEventListener('click', performSearch);
+
+            if (clearInput) {
+                clearInput.addEventListener('click', () => {
+                    locationInput.value = '';
+                    searchResults.style.display = 'none';
+                    searchResults.innerHTML = '<div class="p-2 text-center text-muted">Sisesta linna nimi</div>';
+                });
+            }
+
+            if (locationInput) {
+                locationInput.addEventListener('input', debounce(() => {
+                    performSearch();
+                }, 300));
+                locationInput.addEventListener('focus', () => {
+                    searchResults.style.display = 'block';
+                    if (locationInput.value.trim().length >= 2) {
+                        performSearch();
+                    } else {
+                        searchResults.innerHTML = '<div class="p-2 text-center text-muted">Sisesta linna nimi</div>';
+                    }
+                });
+                locationInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && searchResults.children.length > 0) {
+                        const firstItem = searchResults.querySelector('.search-result-item');
+                        if (firstItem) {
+                            firstItem.click();
+                        } else {
+                            performSearch();
+                        }
+                    }
+                });
+            }
+
+            if (countryFilter) {
+                countryFilter.addEventListener('change', () => {
+                    locationInput.value = '';
+                    searchResults.style.display = 'none';
+                    searchResults.innerHTML = '<div class="p-2 text-center text-muted">Sisesta linna nimi</div>';
+                    performSearch();
+                });
+            }
+
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', () => {
+                    const sidebar = document.getElementById('sidebar');
+                    sidebar.classList.toggle('active');
+                });
+            }
+
+            document.addEventListener('click', e => {
+                if (!e.target.closest('#search-results') && e.target !== locationInput && !e.target.closest('#search-btn')) {
+                    searchResults.style.display = 'none';
+                }
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (searchResults.style.display === 'block') {
+                    const items = searchResults.querySelectorAll('.search-result-item');
+                    const focused = document.activeElement;
+                    let index = Array.from(items).indexOf(focused);
+
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        index = (index + 1) % items.length;
+                        items[index].focus();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        index = (index - 1 + items.length) % items.length;
+                        items[index].focus();
+                    }
+                }
+            });
+
+            if (typeof ol !== 'undefined') {
+                initializeMap();
+            } else {
+                showToast('OpenLayersi laadimine ebaõnnestus', 'danger');
+            }
+
+            setTimeout(() => {
+                const mapLoading = document.getElementById('map-loading');
+                if (mapLoading && mapLoading.style.display !== 'none') {
+                    mapLoading.innerHTML = '<p class="text-warning">Kaardi laadimine aegus. <a href="#" onclick="location.reload()">Proovi uuesti</a>.</p>';
+                    showToast('Kaardi laadimine aegus', 'warning');
+                }
+            }, 10000);
+        });
+    </script>
+</body>
+</html>

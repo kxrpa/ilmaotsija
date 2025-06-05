@@ -1,0 +1,6 @@
+# PROGRAMMI TÖÖTAMISEKS PEATE INSTALLIMA TEEGID
+
+pip install flask flask-cors requests python-dotenv pycountry cachetools flask-limiter
+
+# Võite klõpsata kaardil ja saada ilmateavet ilma linna nime sisestamata.
+# ÄRGE MUUDA JA/VÕI KUSTUTAGE SELLES KAUSTAS ÜHTEGI FAILI!!!
